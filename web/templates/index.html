@@ -1,1 +1,366 @@
 <!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Supervision Réseau</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="header-left">
+    <span class="logo">⚡</span>
+    <h1>Système de Supervision Réseau</h1>
+  </div>
+  <div class="header-right">
+    <span id="last-update">Dernière mise à jour : —</span>
+    <span class="badge" id="nodes-count">0 nœuds</span>
+  </div>
+</header>
+
+<!-- ── STATS RAPIDES ── -->
+<div class="stats-bar">
+  <div class="stat-card green">
+    <div class="stat-number" id="stat-up">0</div>
+    <div class="stat-label">Nœuds UP</div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-number" id="stat-down">0</div>
+    <div class="stat-label">Nœuds DOWN</div>
+  </div>
+  <div class="stat-card orange">
+    <div class="stat-number" id="stat-alerts">0</div>
+    <div class="stat-label">Alertes actives</div>
+  </div>
+  <div class="stat-card blue">
+    <div class="stat-number" id="stat-total">0</div>
+    <div class="stat-label">Total nœuds</div>
+  </div>
+</div>
+
+<!-- ── CONTENU PRINCIPAL ── -->
+<main>
+
+  <!-- ── TABLEAU DES NŒUDS ── -->
+  <section class="card">
+    <div class="card-header">
+      <h2>📡 Nœuds supervisés</h2>
+      <button class="btn-refresh" onclick="loadAll()">🔄 Rafraîchir</button>
+    </div>
+    <table id="nodes-table">
+      <thead>
+        <tr>
+          <th>Nœud ID</th>
+          <th>Système</th>
+          <th>Processeur</th>
+          <th>Dernière vue</th>
+          <th>Statut</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="nodes-body">
+        <tr><td colspan="6" class="loading">Chargement...</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── MÉTRIQUES EN TEMPS RÉEL ── -->
+  <section class="card" id="metrics-section" style="display:none">
+    <div class="card-header">
+      <h2>📊 Métriques — <span id="selected-node">—</span></h2>
+      <button class="btn-close" onclick="closeMetrics()">✕ Fermer</button>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-box">
+        <h3>CPU (%)</h3>
+        <canvas id="chart-cpu"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>RAM (%)</h3>
+        <canvas id="chart-ram"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Disque (%)</h3>
+        <canvas id="chart-disk"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ALERTES ── -->
+  <section class="card">
+    <div class="card-header">
+      <h2>⚠️ Alertes récentes</h2>
+    </div>
+    <div id="alerts-list">
+      <p class="loading">Chargement...</p>
+    </div>
+  </section>
+
+  <!-- ── ENVOYER UNE COMMANDE ── -->
+  <section class="card">
+    <div class="card-header">
+      <h2>🎮 Envoyer une commande</h2>
+    </div>
+    <div class="command-form">
+      <div class="form-row">
+        <label>Nœud cible</label>
+        <select id="cmd-node">
+          <option value="">— Choisir un nœud —</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Service cible</label>
+        <input type="text" id="cmd-target"
+               placeholder="ex: http, ssh, vlc..."/>
+      </div>
+      <div class="form-row">
+        <label>Action</label>
+        <select id="cmd-action">
+          <option value="UP">UP — Activer</option>
+          <option value="DOWN">DOWN — Désactiver</option>
+        </select>
+      </div>
+      <button class="btn-send" onclick="sendCommand()">
+        🚀 Envoyer la commande
+      </button>
+      <div id="cmd-result"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── TOAST NOTIFICATION ── -->
+<div id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────
+// VARIABLES GLOBALES
+// ─────────────────────────────────────────
+let chartCpu  = null;
+let chartRam  = null;
+let chartDisk = null;
+let currentNode = null;
+
+// ─────────────────────────────────────────
+// UTILITAIRES
+// ─────────────────────────────────────────
+
+function showToast(msg, type = "success") {
+  const toast = document.getElementById("toast");
+  toast.textContent = msg;
+  toast.className = "toast show " + type;
+  setTimeout(() => toast.className = "toast", 3000);
+}
+
+function updateTime() {
+  const now = new Date().toLocaleTimeString("fr-FR");
+  document.getElementById("last-update").textContent =
+    "Dernière mise à jour : " + now;
+}
+
+// ─────────────────────────────────────────
+// CHARGEMENT DES NŒUDS
+// ─────────────────────────────────────────
+
+async function loadNodes() {
+  const res   = await fetch("/api/nodes");
+  const nodes = await res.json();
+
+  const tbody  = document.getElementById("nodes-body");
+  const select = document.getElementById("cmd-node");
+  tbody.innerHTML  = "";
+  select.innerHTML = '<option value="">— Choisir un nœud —</option>';
+
+  let up = 0, down = 0;
+
+  if (nodes.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="6" class="loading">Aucun nœud connecté</td></tr>';
+  } else {
+    nodes.forEach(node => {
+      const isUp = node.status === "UP";
+      if (isUp) up++; else down++;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${node.node_id}</strong></td>
+        <td>${node.os || "—"}</td>
+        <td class="cpu-type">${(node.cpu_type || "—").substring(0, 35)}</td>
+        <td>${(node.last_seen || "—").substring(0, 19)}</td>
+        <td>
+          <span class="status-badge ${isUp ? 'up' : 'down'}">
+            ${isUp ? '✅ UP' : '❌ DOWN'}
+          </span>
+        </td>
+        <td>
+          <button class="btn-view"
+            onclick="loadMetrics('${node.node_id}')">
+            📊 Métriques
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+
+      const opt = document.createElement("option");
+      opt.value = node.node_id;
+      opt.textContent = node.node_id;
+      select.appendChild(opt);
+    });
+  }
+
+  document.getElementById("stat-up").textContent    = up;
+  document.getElementById("stat-down").textContent  = down;
+  document.getElementById("stat-total").textContent = nodes.length;
+  document.getElementById("nodes-count").textContent =
+    nodes.length + " nœud(s)";
+}
+
+// ─────────────────────────────────────────
+// CHARGEMENT DES MÉTRIQUES + GRAPHIQUES
+// ─────────────────────────────────────────
+
+async function loadMetrics(nodeId) {
+  currentNode = nodeId;
+  document.getElementById("selected-node").textContent = nodeId;
+  document.getElementById("metrics-section").style.display = "block";
+  document.getElementById("metrics-section").scrollIntoView(
+    {behavior: "smooth"});
+
+  const res     = await fetch(`/api/metrics/${nodeId}`);
+  const metrics = await res.json();
+
+  if (metrics.length === 0) {
+    showToast("Aucune métrique disponible pour ce nœud", "error");
+    return;
+  }
+
+  metrics.reverse();
+
+  const labels   = metrics.map(m => m.timestamp.substring(11, 19));
+  const cpuData  = metrics.map(m => m.cpu_load);
+  const ramData  = metrics.map(m => m.mem_load);
+  const diskData = metrics.map(m => m.disk_load);
+
+  drawChart("chart-cpu",  chartCpu,  labels, cpuData,
+            "CPU (%)",   "#f87171", c => chartCpu  = c);
+  drawChart("chart-ram",  chartRam,  labels, ramData,
+            "RAM (%)",   "#818cf8", c => chartRam  = c);
+  drawChart("chart-disk", chartDisk, labels, diskData,
+            "Disque ()", "#34d399", c => chartDisk = c);
+}
+
+function drawChart(canvasId, existingChart, labels, data, label, color, setter) {
+  if (existingChart) existingChart.destroy();
+  const ctx = document.getElementById(canvasId).getContext("2d");
+  const chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: label,
+        data: data,
+        borderColor: color,
+        backgroundColor: color + "33",
+        borderWidth: 2,
+        pointRadius: 4,
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: "#e2e8f0" } } },
+      scales: {
+        x: { ticks: { color: "#94a3b8" },
+             grid:  { color: "#334155" } },
+        y: { min: 0, max: 100,
+             ticks: { color: "#94a3b8" },
+             grid:  { color: "#334155" } }
+      }
+    }
+  });
+  setter(chart);
+}
+
+function closeMetrics() {
+  document.getElementById("metrics-section").style.display = "none";
+  currentNode = null;
+}
+
+// ─────────────────────────────────────────
+// CHARGEMENT DES ALERTES
+// ─────────────────────────────────────────
+
+async function loadAlerts() {
+  const res    = await fetch("/api/alerts");
+  const alerts = await res.json();
+
+  const div = document.getElementById("alerts-list");
+  document.getElementById("stat-alerts").textContent = alerts.length;
+
+  if (alerts.length === 0) {
+    div.innerHTML =
+      '<p class="no-alert">✅ Aucune alerte — tout fonctionne bien</p>';
+    return;
+  }
+
+  div.innerHTML = alerts.map(a => `
+    <div class="alert-item">
+      <span class="alert-node">${a.node_id}</span>
+      <span class="alert-time">${a.timestamp.substring(0, 19)}</span>
+      <span class="alert-msg">⚠️ ${a.message}</span>
+    </div>
+  `).join("");
+}
+
+// ─────────────────────────────────────────
+// ENVOI DE COMMANDE
+// ─────────────────────────────────────────
+
+async function sendCommand() {
+  const node_id = document.getElementById("cmd-node").value;
+  const target  = document.getElementById("cmd-target").value;
+  const action  = document.getElementById("cmd-action").value;
+  const result  = document.getElementById("cmd-result");
+
+  if (!node_id || !target) {
+    showToast("Veuillez remplir tous les champs", "error");
+    return;
+  }
+
+  const res  = await fetch("/api/command", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ node_id, action, target })
+  });
+  const data = await res.json();
+
+  if (data.status === "ok") {
+    result.innerHTML = `<p class="cmd-ok">✅ ${data.message}</p>`;
+    showToast("Commande envoyée !", "success");
+  } else {
+    result.innerHTML = `<p class="cmd-error">❌ ${data.message}</p>`;
+    showToast("Erreur : " + data.message, "error");
+  }
+}
+
+// ─────────────────────────────────────────
+// RAFRAÎCHISSEMENT AUTOMATIQUE
+// ─────────────────────────────────────────
+
+async function loadAll() {
+  await loadNodes();
+  await loadAlerts();
+  if (currentNode) await loadMetrics(currentNode);
+  updateTime();
+}
+
+loadAll();
+setInterval(loadAll, 10000);
+</script>
+</body>
+</html>
+
