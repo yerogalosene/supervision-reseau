@@ -1,0 +1,32 @@
+[
+  {
+    "agents": 10,
+    "success": 30,
+    "errors": 0,
+    "success_rate": 100.0,
+    "total_time": 3.76,
+    "avg_time_ms": 196.2,
+    "min_time_ms": 19.1,
+    "max_time_ms": 670.3
+  },
+  {
+    "agents": 50,
+    "success": 150,
+    "errors": 0,
+    "success_rate": 100.0,
+    "total_time": 8.42,
+    "avg_time_ms": 715.4,
+    "min_time_ms": 7.7,
+    "max_time_ms": 5372.2
+  },
+  {
+    "agents": 100,
+    "success": 294,
+    "errors": 2,
+    "success_rate": 99.3,
+    "total_time": 10.89,
+    "avg_time_ms": 1249.9,
+    "min_time_ms": 8.6,
+    "max_time_ms": 7575.8
+  }
+]

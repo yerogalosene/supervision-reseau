@@ -124,4 +124,4 @@ def collect_all() -> dict:
         "ports"    : get_monitored_ports(),
         "alerts"   : get_alerts(cpu, mem, disk)
     }
- 
+
