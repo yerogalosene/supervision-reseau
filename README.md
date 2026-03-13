@@ -12,7 +12,7 @@ Réalisé avec Python 3.12, SQLite, Flask
 https://github.com/yerogalosene/supervision-reseau
 
 
-## 📋 Description
+## Description
 Système distribué de supervision réseau basé sur une architecture
 client-serveur. Des agents collectent les métriques système
 (CPU, RAM, Disque, services, ports) et les envoient à un serveur
@@ -20,7 +20,7 @@ central qui les stocke et les affiche sur une interface web.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 ```
 supervision/
 ├── agent/
@@ -50,7 +50,7 @@ supervision/
 
 ---
 
-## ⚙️ Installation
+## Installation
 
 ### 1. Prérequis
 - Python 3.10 ou supérieur
@@ -58,7 +58,7 @@ supervision/
 
 ### 2. Cloner le projet
 ```bash
-git clone <lien_du_repo>
+git clone https://github.com/yerogalosene/supervision-reseau
 cd supervision
 ```
 
@@ -85,7 +85,7 @@ python db/init_db.py
 
 ---
 
-## 🚀 Lancement du système
+##  Lancement du système
 
 Ouvrir **3 terminaux** dans le dossier `supervision/` avec le venv activé.
 
@@ -111,7 +111,7 @@ http://127.0.0.1:5000
 
 ---
 
-## 🧪 Tests de charge
+## Tests de charge
 
 Avec le serveur lancé, exécuter dans un terminal :
 ```bash
@@ -122,7 +122,7 @@ et affiche un tableau récapitulatif des performances.
 
 ---
 
-## 📡 Protocole de communication
+## Protocole de communication
 
 Format JSON sur socket TCP — 3 types de messages :
 
@@ -155,7 +155,7 @@ Format JSON sur socket TCP — 3 types de messages :
 
 ---
 
-## 🗄️ Base de données
+## Base de données
 
 SQLite avec 5 tables :
 - `nodes` — liste des nœuds supervisés
@@ -168,7 +168,7 @@ Pool de connexions : 10 connexions simultanées (queue.Queue)
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 Modifier `agent/config.py` pour changer :
 - `SERVER_HOST` — adresse IP du serveur
@@ -178,7 +178,7 @@ Modifier `agent/config.py` pour changer :
 
 ---
 
-## 📊 Résultats des tests de charge
+## Résultats des tests de charge
 
 | Agents | Succès | Erreurs | Taux   | Temps moyen |
 |--------|--------|---------|--------|-------------|
